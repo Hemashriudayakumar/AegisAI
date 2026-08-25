@@ -1,0 +1,14 @@
+policy_id: "CUSTOMER_VERIFICATION_001"
+name: "Customer Identity Verification Policy"
+version: "v1.0"
+severity: "HIGH"
+description: "Customer identity must be verified before accessing sensitive order information, initiating refunds, cancellations, or applying discounts."
+parameters:
+  sensitive_tools:
+    - "issue_refund"
+    - "cancel_order"
+    - "offer_discount"
+    - "get_order_status"
+enforcement:
+  blocked_safe_response: "Please verify your identity with your registered phone number or email before we can access sensitive order details or process financial requests."
+  requires_human_review: false
