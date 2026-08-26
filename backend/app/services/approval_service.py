@@ -4,8 +4,8 @@ import datetime
 from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 from app.models.approval import Approval
+from app.models.incident import Incident
 from app.schemas.approval import ApprovalRead
-from app.services.incident_service import incident_service
 
 class ApprovalService:
     @staticmethod
@@ -28,8 +28,8 @@ class ApprovalService:
             action_type=action_type,
             proposed_action=json.dumps(proposed_action),
             status="PENDING",
-            created_at=datetime.datetime.utcnow(),
-            updated_at=datetime.datetime.utcnow(),
+            created_at=datetime.datetime.now(datetime.timezone.utc),
+            updated_at=datetime.datetime.now(datetime.timezone.utc),
         )
         db.add(approval)
         db.commit()
@@ -43,17 +43,59 @@ class ApprovalService:
         approved: bool,
         notes: Optional[str] = None
     ) -> Optional[ApprovalRead]:
-        approval = db.query(Approval).filter(
-            (Approval.decision_id == decision_id) | (Approval.id == decision_id)
+        new_status = "APPROVED" if approved else "REJECTED"
+        
+        # 1. Update any matching incident
+        incident = db.query(Incident).filter(
+            (Incident.id == decision_id) | 
+            (Incident.request_id == decision_id)
         ).first()
-        if not approval:
-            return None
+        
+        if incident:
+            incident.escalation_status = new_status
+            incident.updated_at = datetime.datetime.now(datetime.timezone.utc)
+            db.commit()
 
-        approval.status = "APPROVED" if approved else "REJECTED"
-        approval.reviewer_notes = notes
-        approval.updated_at = datetime.datetime.utcnow()
-        db.commit()
-        db.refresh(approval)
+        # 2. Look for approval record
+        approval = db.query(Approval).filter(
+            (Approval.decision_id == decision_id) | 
+            (Approval.id == decision_id) | 
+            (Approval.request_id == decision_id)
+        ).first()
+
+        if not approval:
+            if incident:
+                approval = Approval(
+                    id=f"APP-{uuid.uuid4().hex[:8].upper()}",
+                    decision_id=decision_id,
+                    request_id=incident.request_id,
+                    conversation_id=incident.conversation_id,
+                    policy_id=incident.policy_id,
+                    action_type=incident.decision,
+                    proposed_action=incident.agent_a_proposal or json.dumps({}),
+                    status=new_status,
+                    reviewer_notes=notes,
+                    created_at=datetime.datetime.now(datetime.timezone.utc),
+                    updated_at=datetime.datetime.now(datetime.timezone.utc),
+                )
+                db.add(approval)
+                db.commit()
+                db.refresh(approval)
+            else:
+                return None
+        else:
+            approval.status = new_status
+            approval.reviewer_notes = notes
+            approval.updated_at = datetime.datetime.now(datetime.timezone.utc)
+            db.commit()
+            db.refresh(approval)
+
+        parsed_action = {}
+        if approval.proposed_action:
+            try:
+                parsed_action = json.loads(approval.proposed_action)
+            except Exception:
+                parsed_action = {"raw": approval.proposed_action}
 
         return ApprovalRead(
             id=approval.id,
@@ -62,7 +104,7 @@ class ApprovalService:
             conversation_id=approval.conversation_id,
             policy_id=approval.policy_id,
             action_type=approval.action_type,
-            proposed_action=json.loads(approval.proposed_action),
+            proposed_action=parsed_action if isinstance(parsed_action, dict) else {},
             status=approval.status,
             reviewer_notes=approval.reviewer_notes,
             created_at=approval.created_at,
