@@ -1,6 +1,6 @@
-# PolicySentinel: A Customer-Service AI Policy Enforcement Gateway
+# AegisAI: A Customer-Service AI Policy Enforcement Gateway
 
-PolicySentinel is an enterprise-grade AI Policy Enforcement Gateway designed to monitor, intercept, and govern AI customer-support agents before:
+AegisAI is an enterprise-grade AI Policy Enforcement Gateway designed to monitor, intercept, and govern AI customer-support agents before:
 1. Their generated responses are presented to customers.
 2. Their proposed actions are delegated to operations agents.
 3. Underlying business tools are executed.
@@ -16,7 +16,7 @@ Customer Message
        ↓
 [Agent A: Customer-Support Agent (Qwen3-8B)]
        ↓ (Proposes response & optional business action)
-[PolicySentinel Gateway (Deterministic Engine & Priority Pipeline)]
+[AegisAI Gateway (Deterministic Engine & Priority Pipeline)]
        ↓
    Decision:
    ├── ALLOW    → [Agent B: Operations Agent] → [Tool Interceptor] → [Mock Tool Execution]

@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="PolicySentinel",
+        title="AegisAI",
         description="A Customer-Service AI Policy Enforcement Gateway",
         version=settings.VERSION,
         lifespan=lifespan,

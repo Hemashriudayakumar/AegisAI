@@ -129,7 +129,7 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
           Interactive Multi-Agent Gateway Simulator
         </h2>
         <p className="text-sm text-slate-400 mt-1">
-          Simulate customer messages and observe how PolicySentinel validates Agent A's proposals, enforces strict authorization envelopes, and blocks unauthorized tool calls.
+          Simulate customer messages and observe how AegisAI validates Agent A's proposals, enforces strict authorization envelopes, and blocks unauthorized tool calls.
         </p>
 
         {/* Scenario Presets */}
@@ -234,7 +234,7 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
               ) : (
                 <>
                   <Send className="w-4 h-4" />
-                  <span>Run PolicySentinel Pipeline</span>
+                  <span>Run AegisAI Pipeline</span>
                 </>
               )}
             </button>
@@ -251,7 +251,7 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
             <div className="h-96 rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 flex flex-col items-center justify-center text-slate-500 p-8 text-center">
               <Bot className="w-12 h-12 mb-3 text-slate-600" />
               <p className="text-sm font-medium text-slate-400">No interaction executed yet.</p>
-              <p className="text-xs text-slate-500 max-w-sm mt-1">Select a preset or enter a message on the left and click "Run PolicySentinel Pipeline".</p>
+              <p className="text-xs text-slate-500 max-w-sm mt-1">Select a preset or enter a message on the left and click "Run AegisAI Pipeline".</p>
             </div>
           )}
 
@@ -283,7 +283,7 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
                 </div>
               </div>
 
-              {/* Step 2: PolicySentinel Evaluation */}
+              {/* Step 2: AegisAI Evaluation */}
               <div className={`rounded-xl p-4 border shadow-sm space-y-2 ${
                 latestResponse.decision === 'ALLOW' ? 'bg-emerald-950/20 border-emerald-800/40' :
                 latestResponse.decision === 'BLOCK' ? 'bg-rose-950/20 border-rose-800/40' :
@@ -292,7 +292,7 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
               }`}>
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5 text-indigo-400" /> Step 2: PolicySentinel Decision
+                    <Shield className="w-3.5 h-3.5 text-indigo-400" /> Step 2: AegisAI Decision
                   </span>
                   <div className="flex items-center gap-2">
                     {getSeverityBadge(latestResponse.severity)}

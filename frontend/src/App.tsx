@@ -42,7 +42,7 @@ export const App: React.FC = () => {
 
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <p>PolicySentinel Gateway v1.0 • Built with LangGraph, Qwen3-8B & FastAPI</p>
+        <p>AegisAI Gateway v1.0 • Built with LangGraph, Qwen3-8B & FastAPI</p>
       </footer>
     </div>
   );

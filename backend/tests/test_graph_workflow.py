@@ -3,7 +3,7 @@ from app.graph.workflow import policy_graph
 
 def test_workflow_blocks_3000_refund_without_manager():
     """Test 1 End-to-End:
-    Customer requests ₹3,000 refund -> Agent A proposes refund -> PolicySentinel BLOCK ->
+    Customer requests ₹3,000 refund -> Agent A proposes refund -> AegisAI BLOCK ->
     Agent B not called -> Tool not executed -> Safe response shown -> Audit stored.
     """
     initial_state = {
@@ -34,7 +34,7 @@ def test_workflow_blocks_3000_refund_without_manager():
 
 def test_workflow_allows_400_refund_with_verified_customer():
     """Test 2 End-to-End:
-    Customer requests ₹400 refund -> Agent A proposes refund -> PolicySentinel ALLOW ->
+    Customer requests ₹400 refund -> Agent A proposes refund -> AegisAI ALLOW ->
     Agent B authorized -> Tool executed -> Result returned -> Audit stored.
     """
     initial_state = {
@@ -63,7 +63,7 @@ def test_workflow_allows_400_refund_with_verified_customer():
 
 def test_workflow_escalates_fraud():
     """Test 6 End-to-End:
-    Customer complains of fraud/scam -> PolicySentinel ESCALATE -> Safe response -> Incident stored.
+    Customer complains of fraud/scam -> AegisAI ESCALATE -> Safe response -> Incident stored.
     """
     initial_state = {
         "request_id": "REQ-TEST-FRAUD",

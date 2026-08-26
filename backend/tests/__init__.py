@@ -1,1 +1,1 @@
-# PolicySentinel test package
+# AegisAI test package

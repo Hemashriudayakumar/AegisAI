@@ -5,12 +5,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings(BaseModel):
-    PROJECT_NAME: str = "PolicySentinel"
+    PROJECT_NAME: str = "AegisAI"
     VERSION: str = "1.0.0"
     
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL", 
-        "sqlite:///./policysentinel.db"
+        "sqlite:///./aegisai.db"
     )
     
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")

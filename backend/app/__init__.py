@@ -1,1 +1,1 @@
-# PolicySentinel backend application package
+# AegisAI backend application package

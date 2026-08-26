@@ -1,4 +1,4 @@
-"""Initial schema migration for PolicySentinel
+"""Initial schema migration for AegisAI
 
 Revision ID: 001_initial_schema
 Revises: 

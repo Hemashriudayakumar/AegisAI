@@ -35,6 +35,7 @@ coverage.xml
 *.sqlite
 *.sqlite3
 policysentinel.db
+aegisai.db
 
 # Environment Variables
 .env
