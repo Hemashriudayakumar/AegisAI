@@ -1,5 +1,6 @@
-import React from 'react';
-import { Shield, Activity, FileText, AlertTriangle, Cpu } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Shield, Activity, FileText, AlertTriangle, Cpu, Radio } from 'lucide-react';
+import { apiClient } from '../api/client';
 
 interface NavbarProps {
   activeTab: 'simulator' | 'audits' | 'incidents' | 'policies';
@@ -8,6 +9,22 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, incidentCount = 0 }) => {
+  const [health, setHealth] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchHealth = async () => {
+      try {
+        const data = await apiClient.getHealth();
+        setHealth(data);
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchHealth();
+    const timer = setInterval(fetchHealth, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -19,9 +36,20 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, inciden
           <div>
             <div className="flex items-center space-x-2">
               <span className="font-bold text-lg text-white tracking-tight">PolicySentinel</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
-                Gateway Active
-              </span>
+              {health?.ollama_connected ? (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-medium flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Ollama ({health.model})
+                </span>
+              ) : (
+                <span
+                  title="Ollama is not running locally. Intelligent Fallback Provider is handling responses."
+                  className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 font-medium flex items-center gap-1"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Fallback Mode (Ollama Offline)
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-400">AI Customer-Support Policy Enforcement</p>
           </div>
