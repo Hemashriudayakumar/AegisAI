@@ -6,7 +6,9 @@ import yaml
 from app.schemas.chat import PolicyDecision, ProposedAction
 from app.policies.evaluator import (
     evaluate_high_risk_escalation,
+    evaluate_repeated_complaint,
     evaluate_pii_protection,
+    evaluate_duplicate_refund,
     evaluate_customer_verification,
     evaluate_refund_limit,
     evaluate_delivery_verification,
@@ -52,7 +54,7 @@ class PolicyEngine:
         Returns the highest-priority decision (ESCALATE/BLOCK/MODIFY/ALLOW).
         """
         ctx = context or {}
-        is_verified = bool(ctx.get("is_verified", False))
+        is_verified = bool(ctx.get("is_verified", False) or ctx.get("customer_verified", False))
         manager_approved = bool(ctx.get("manager_approved", False))
 
         # 1. HIGH_RISK_ESCALATION_001
@@ -63,7 +65,16 @@ class PolicyEngine:
         if high_risk_dec:
             return high_risk_dec
 
-        # 2. PII_PROTECTION_001
+        # 2. REPEATED_COMPLAINT_001 (Multi-turn Context Checking)
+        rep_comp_def = self.policies.get("REPEATED_COMPLAINT_001", {
+            "policy_id": "REPEATED_COMPLAINT_001", "version": "v1.0", "severity": "HIGH",
+            "parameters": {"escalation_complaint_threshold": 3}
+        })
+        rep_comp_dec = evaluate_repeated_complaint(customer_message, ctx, rep_comp_def)
+        if rep_comp_dec:
+            return rep_comp_dec
+
+        # 3. PII_PROTECTION_001
         pii_def = self.policies.get("PII_PROTECTION_001", {
             "policy_id": "PII_PROTECTION_001", "version": "v1.0", "severity": "CRITICAL"
         })
@@ -71,7 +82,15 @@ class PolicyEngine:
         if pii_dec:
             return pii_dec
 
-        # 3. CUSTOMER_VERIFICATION_001
+        # 4. DUPLICATE_REFUND_001 (Multi-turn Context Checking)
+        dup_refund_def = self.policies.get("DUPLICATE_REFUND_001", {
+            "policy_id": "DUPLICATE_REFUND_001", "version": "v1.0", "severity": "HIGH"
+        })
+        dup_refund_dec = evaluate_duplicate_refund(proposed_action, ctx, dup_refund_def)
+        if dup_refund_dec:
+            return dup_refund_dec
+
+        # 5. CUSTOMER_VERIFICATION_001
         cust_ver_def = self.policies.get("CUSTOMER_VERIFICATION_001", {
             "policy_id": "CUSTOMER_VERIFICATION_001", "version": "v1.0", "severity": "HIGH"
         })
@@ -79,7 +98,7 @@ class PolicyEngine:
         if cust_ver_dec:
             return cust_ver_dec
 
-        # 4. REFUND_LIMIT_001
+        # 6. REFUND_LIMIT_001
         refund_def = self.policies.get("REFUND_LIMIT_001", {
             "policy_id": "REFUND_LIMIT_001", "version": "v1.0", "severity": "HIGH"
         })
@@ -87,7 +106,7 @@ class PolicyEngine:
         if refund_dec:
             return refund_dec
 
-        # 5. DELIVERY_VERIFICATION_001
+        # 7. DELIVERY_VERIFICATION_001
         deliv_def = self.policies.get("DELIVERY_VERIFICATION_001", {
             "policy_id": "DELIVERY_VERIFICATION_001", "version": "v1.0", "severity": "MEDIUM"
         })
@@ -102,7 +121,7 @@ class PolicyEngine:
             policy_version="v1.0",
             severity="LOW",
             reason="All policy checks passed successfully.",
-            evidence={"checks_performed": ["HIGH_RISK", "PII", "VERIFICATION", "REFUND", "DELIVERY"]},
+            evidence={"checks_performed": ["HIGH_RISK", "REPEATED_COMPLAINT", "PII", "DUPLICATE_REFUND", "VERIFICATION", "REFUND", "DELIVERY"]},
             requires_human_review=False
         )
 

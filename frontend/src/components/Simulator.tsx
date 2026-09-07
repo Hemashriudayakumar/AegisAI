@@ -1,7 +1,24 @@
-import React, { useState } from 'react';
-import { Send, Shield, Bot, CheckCircle, XCircle, AlertTriangle, ArrowRight, CornerDownRight, CheckSquare, Sparkles, Terminal } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import {
+  Send,
+  Shield,
+  Bot,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Sparkles,
+  Terminal,
+  History,
+  CheckSquare,
+  Clock,
+  Layers,
+  Repeat,
+  RotateCcw,
+  Tag,
+  UserCheck
+} from 'lucide-react';
 import { apiClient } from '../api/client';
-import { ChatResponse, DecisionType, SeverityType } from '../types';
+import { ChatResponse, ConversationContext, DecisionType, SeverityType } from '../types';
 
 export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLogged }) => {
   const [customerMessage, setCustomerMessage] = useState('I would like to request a refund of ₹3,000 for my order ORD-101.');
@@ -12,17 +29,52 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [latestResponse, setLatestResponse] = useState<ChatResponse | null>(null);
+  const [contextData, setContextData] = useState<ConversationContext | null>(null);
+
+  const fetchContext = async (convId: string) => {
+    try {
+      const data = await apiClient.getChatContext(convId);
+      setContextData(data);
+      if (data.customer_verified) {
+        setIsVerified(true);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    fetchContext(conversationId);
+  }, [conversationId]);
 
   const presets = [
     {
-      label: '🛑 ₹3,000 Refund (Blocked)',
-      msg: 'I would like to request a refund of ₹3,000 for my order ORD-101.',
+      label: '🔄 Turn 1: ₹400 Refund (Allowed & Stored)',
+      msg: 'Please refund ₹400 for my order ORD-101.',
       verified: true,
       manager: false,
     },
     {
-      label: '✅ ₹400 Refund (Allowed)',
-      msg: 'Please issue a refund of ₹400 for my order ORD-202.',
+      label: '🛑 Turn 2: Duplicate Refund (Blocked F9)',
+      msg: 'Please refund ₹400 for my order ORD-101 again.',
+      verified: true,
+      manager: false,
+    },
+    {
+      label: '🚨 Turn 3: 3rd Complaint (Escalated F9)',
+      msg: 'This is my third issue with this broken product, terrible quality!',
+      verified: true,
+      manager: false,
+    },
+    {
+      label: '✨ Delivery Date Promise (Remediated F5)',
+      msg: 'When will my package arrive?',
+      verified: true,
+      manager: false,
+    },
+    {
+      label: '🛑 ₹3,000 Refund (Blocked & Remediated F5)',
+      msg: 'I need a refund of ₹3,000 for order ORD-101.',
       verified: true,
       manager: false,
     },
@@ -39,32 +91,14 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
       manager: false,
     },
     {
-      label: '🔒 Unverified Order Lookup (Blocked)',
+      label: '🔒 Unverified Sensitive Access (Blocked)',
       msg: 'What is the delivery address and status for order ORD-101?',
       verified: false,
       manager: false,
     },
     {
-      label: '📅 Delivery Date Promise (Remediated)',
-      msg: 'When will my package arrive?',
-      verified: true,
-      manager: false,
-    },
-    {
-      label: '🚨 Legal / Fraud Complaint (Escalated)',
-      msg: 'This order is fraud and a scam! I am contacting my lawyer and police to sue you.',
-      verified: true,
-      manager: false,
-    },
-    {
       label: '📦 Cancel Order (Allowed)',
       msg: 'Please cancel order ORD-101 for me.',
-      verified: true,
-      manager: false,
-    },
-    {
-      label: '🎁 Discount Claim (Allowed)',
-      msg: 'Can you offer me a discount or coupon code for my order?',
       verified: true,
       manager: false,
     }
@@ -86,12 +120,24 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
         manager_approved: managerApproved,
       });
       setLatestResponse(response);
+      if (response.context) {
+        setContextData(response.context);
+      } else {
+        await fetchContext(conversationId);
+      }
       if (onEventLogged) onEventLogged();
     } catch (err: any) {
       setError(err.message || 'An error occurred during workflow execution.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetConversation = () => {
+    const newConvId = `CONV-${Math.floor(100 + Math.random() * 900)}`;
+    setConversationId(newConvId);
+    setLatestResponse(null);
+    setContextData(null);
   };
 
   const getDecisionBadge = (decision: DecisionType) => {
@@ -123,18 +169,31 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
       {/* Top Banner / Description */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <Bot className="w-5 h-5 text-indigo-400" />
-          Interactive Multi-Agent Gateway Simulator
-        </h2>
-        <p className="text-sm text-slate-400 mt-1">
-          Simulate customer messages and observe how AegisAI validates Agent A's proposals, enforces strict authorization envelopes, and blocks unauthorized tool calls.
-        </p>
+      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <Bot className="w-5 h-5 text-indigo-400" />
+            Interactive Multi-Agent Gateway Simulator
+          </h2>
+          <p className="text-sm text-slate-400 mt-1">
+            Test multi-turn context persistence (F9) and automatic response remediation (F5) across customer turns.
+          </p>
+        </div>
 
-        {/* Scenario Presets */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="text-xs text-slate-400 flex items-center mr-1">Quick Presets:</span>
+        <button
+          onClick={resetConversation}
+          className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition"
+        >
+          <RotateCcw className="w-3.5 h-3.5" /> New Conversation
+        </button>
+      </div>
+
+      {/* Scenario Presets */}
+      <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-2">
+        <span className="text-xs text-slate-400 font-semibold flex items-center gap-1.5">
+          <Layers className="w-3.5 h-3.5 text-indigo-400" /> Quick Simulation Presets:
+        </span>
+        <div className="flex flex-wrap gap-2">
           {presets.map((p, idx) => (
             <button
               key={idx}
@@ -152,8 +211,9 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Input Form Column */}
+        {/* Left Column: Form & Multi-turn Context */}
         <div className="lg:col-span-5 space-y-6">
+          {/* Input Controls */}
           <form onSubmit={handleSend} className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
             <h3 className="text-base font-semibold text-white flex items-center gap-2">
               <Terminal className="w-4 h-4 text-indigo-400" /> Customer Interaction Controls
@@ -164,7 +224,7 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
               <textarea
                 value={customerMessage}
                 onChange={(e) => setCustomerMessage(e.target.value)}
-                rows={4}
+                rows={3}
                 className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
                 placeholder="Type customer message..."
               />
@@ -191,7 +251,7 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
               </div>
             </div>
 
-            {/* Context Checkboxes */}
+            {/* Checkboxes */}
             <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5">
               <label className="flex items-center space-x-2.5 cursor-pointer">
                 <input
@@ -229,7 +289,7 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
               {loading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Evaluating Gateway Pipeline...</span>
+                  <span>Evaluating AegisAI Pipeline...</span>
                 </>
               ) : (
                 <>
@@ -239,9 +299,66 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
               )}
             </button>
           </form>
+
+          {/* Feature F9: Multi-Turn Context Panel */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3.5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <History className="w-4 h-4 text-violet-400" /> Multi-Turn Context State (F9)
+              </h3>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 font-medium">
+                {conversationId}
+              </span>
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              {/* Verification & Complaint row */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                  <span className="text-slate-400">Verified:</span>
+                  <span className={`font-semibold flex items-center gap-1 ${contextData?.customer_verified ? 'text-emerald-400' : 'text-slate-500'}`}>
+                    <UserCheck className="w-3.5 h-3.5" />
+                    {contextData?.customer_verified ? 'Yes' : 'No'}
+                  </span>
+                </div>
+
+                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                  <span className="text-slate-400">Complaints:</span>
+                  <span className={`font-semibold px-2 py-0.5 rounded ${
+                    (contextData?.complaint_count || 0) >= 3 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                    (contextData?.complaint_count || 0) > 0 ? 'bg-amber-500/20 text-amber-400' : 'text-slate-400'
+                  }`}>
+                    {contextData?.complaint_count || 0} / 3
+                  </span>
+                </div>
+              </div>
+
+              {/* Previous refunds list */}
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-medium">Previous Issued Refunds:</span>
+                  <span className="text-[11px] text-slate-500">{contextData?.previous_refunds?.length || 0} recorded</span>
+                </div>
+
+                {contextData?.previous_refunds && contextData.previous_refunds.length > 0 ? (
+                  <div className="space-y-1 pt-1">
+                    {contextData.previous_refunds.map((ref, i) => (
+                      <div key={i} className="flex items-center justify-between text-[11px] bg-slate-900/80 px-2.5 py-1.5 rounded border border-slate-800 font-mono">
+                        <span className="text-indigo-300 font-semibold">{ref.order_id}</span>
+                        <span className="text-emerald-400">₹{ref.amount.toLocaleString()}</span>
+                        <span className="text-slate-500 text-[10px]">{new Date(ref.timestamp).toLocaleTimeString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-500 italic text-[11px] pt-1">No previous refunds for this conversation.</p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Pipeline Execution Trace Column */}
+        {/* Right Column: Pipeline Execution Trace & Remediation */}
         <div className="lg:col-span-7 space-y-4">
           <h3 className="text-base font-semibold text-white flex items-center gap-2">
             <Shield className="w-4 h-4 text-indigo-400" /> Gateway Execution Trace
@@ -267,7 +384,7 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
                 </div>
                 <div className="bg-slate-950/70 rounded-lg p-3 text-xs text-slate-200 border border-slate-800/60">
                   <p className="font-semibold text-slate-400 mb-1">Generated Response:</p>
-                  <p className="text-slate-100">{latestResponse.agent_a_response || 'None'}</p>
+                  <p className="text-slate-100">{latestResponse.original_response || latestResponse.agent_a_response || 'None'}</p>
                   
                   {latestResponse.proposed_action ? (
                     <div className="mt-2 pt-2 border-t border-slate-800">
@@ -320,7 +437,7 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
                 </div>
               </div>
 
-              {/* Step 3: Agent B & Tool Interceptor Security Gate */}
+              {/* Step 3: Operations Agent B & Tool Interceptor */}
               <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 shadow-sm space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -363,12 +480,31 @@ export const Simulator: React.FC<{ onEventLogged?: () => void }> = ({ onEventLog
                 </div>
               </div>
 
-              {/* Step 4: Final Customer Safe Response */}
-              <div className="bg-gradient-to-r from-slate-900 to-indigo-950/40 border border-indigo-900/40 rounded-xl p-4 shadow-sm space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-                  <CheckSquare className="w-3.5 h-3.5" /> Step 4: Final Customer-Facing Message
-                </span>
-                <div className="bg-slate-950/80 rounded-lg p-3.5 text-sm text-slate-100 border border-indigo-500/20 font-medium">
+              {/* Step 4: Final Response & Feature F5 Remediation */}
+              <div className="bg-gradient-to-r from-slate-900 to-indigo-950/40 border border-indigo-900/40 rounded-xl p-4 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                    <CheckSquare className="w-3.5 h-3.5" /> Step 4: Customer-Facing Safe Delivery
+                  </span>
+                  {latestResponse.remediation_type && (
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/40 font-semibold flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Remediation: {latestResponse.remediation_type}
+                    </span>
+                  )}
+                </div>
+
+                {/* If response was remediated (BLOCK or MODIFY) */}
+                {latestResponse.decision !== 'ALLOW' && latestResponse.original_response && (
+                  <div className="bg-slate-950/90 rounded-lg p-3 text-xs border border-rose-900/30 space-y-1">
+                    <span className="text-rose-400/80 font-semibold flex items-center gap-1">
+                      <XCircle className="w-3.5 h-3.5" /> Intercepted Raw Agent A Output (Blocked/Modified):
+                    </span>
+                    <p className="text-slate-400 line-through italic pl-4">{latestResponse.original_response}</p>
+                  </div>
+                )}
+
+                <div className="bg-slate-950/90 rounded-lg p-3.5 text-sm text-slate-100 border border-indigo-500/30 font-medium">
+                  <span className="text-[11px] text-indigo-400 font-semibold block mb-1">Delivered Customer Response:</span>
                   {latestResponse.final_response}
                 </div>
               </div>

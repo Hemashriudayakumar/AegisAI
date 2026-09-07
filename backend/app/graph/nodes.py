@@ -3,6 +3,7 @@ from typing import Any, Dict
 from app.graph.state import PolicyState
 from app.agents.agent_a import support_agent_a
 from app.agents.agent_b import operations_agent_b
+from app.agents.remediation import remediate_response
 from app.policies.engine import policy_engine
 from app.tools.interceptor import tool_interceptor
 from app.schemas.chat import (
@@ -34,7 +35,7 @@ def node_support_agent(state: PolicyState) -> PolicyState:
         return {}
     customer_message = state.get("customer_message", "")
     context = state.get("conversation_context", {})
-    context["conversation_id"] = state.get("conversation_id", "CONV-101")
+    context["conversation_id"] = state.get("conversation_id", "CONV-501")
     
     agent_a_output: AgentAResponse = support_agent_a.process_customer_turn(
         customer_message=customer_message,
@@ -43,6 +44,7 @@ def node_support_agent(state: PolicyState) -> PolicyState:
     
     return {
         "agent_a_response": agent_a_output.response,
+        "original_response": agent_a_output.response,
         "proposed_action": agent_a_output.proposed_action.model_dump() if agent_a_output.proposed_action else None
     }
 
@@ -51,7 +53,6 @@ def node_normalize_agent_output(state: PolicyState) -> PolicyState:
     if state.get("error"):
         return {}
     
-    # Ensures proposed action has valid format
     raw_action = state.get("proposed_action")
     if raw_action:
         normalized = ProposedAction(
@@ -113,12 +114,11 @@ def route_decision_fn(state: PolicyState) -> str:
         if state.get("approved_action"):
             return "operations_agent"
         else:
-            # No tool to run, jump directly to audit
             return "audit_event"
     elif decision == "MODIFY":
         return "remediation_agent"
     elif decision == "BLOCK":
-        return "audit_event"
+        return "remediation_agent"
     elif decision == "ESCALATE":
         return "human_escalation"
     return "audit_event"
@@ -177,12 +177,24 @@ def node_tool_interceptor(state: PolicyState) -> PolicyState:
 def node_execute_mock_tool(state: PolicyState) -> PolicyState:
     return {}
 
-# 9. remediation_agent
+# 9. remediation_agent (Feature F5: Response Remediation Agent)
 def node_remediation_agent(state: PolicyState) -> PolicyState:
     dec_dict = state.get("policy_decision") or {}
-    safe_response = dec_dict.get("safe_response") or "I apologize for any confusion. Please provide your order ID so I can verify details."
+    original_resp = state.get("agent_a_response") or state.get("original_response") or ""
+    context = state.get("conversation_context", {})
+
+    corrected, rem_type = remediate_response(
+        policy_decision=dec_dict,
+        original_response=original_resp,
+        context=context,
+        prefer_llm=False
+    )
+
     return {
-        "final_response": safe_response,
+        "original_response": original_resp,
+        "corrected_response": corrected,
+        "remediation_type": rem_type,
+        "final_response": corrected,
         "agent_b_called": False,
         "tool_executed": False,
     }
@@ -190,9 +202,21 @@ def node_remediation_agent(state: PolicyState) -> PolicyState:
 # 10. human_escalation
 def node_human_escalation(state: PolicyState) -> PolicyState:
     dec_dict = state.get("policy_decision") or {}
-    safe_response = dec_dict.get("safe_response") or "Your request has been escalated to our senior human operations team."
+    original_resp = state.get("agent_a_response") or state.get("original_response") or ""
+    context = state.get("conversation_context", {})
+
+    corrected, rem_type = remediate_response(
+        policy_decision=dec_dict,
+        original_response=original_resp,
+        context=context,
+        prefer_llm=False
+    )
+
     return {
-        "final_response": safe_response,
+        "original_response": original_resp,
+        "corrected_response": corrected,
+        "remediation_type": rem_type,
+        "final_response": corrected,
         "agent_b_called": False,
         "tool_executed": False,
     }
@@ -223,7 +247,7 @@ def node_audit_event(state: PolicyState) -> PolicyState:
     policy_version = dec_dict.get("policy_version")
     severity = dec_dict.get("severity")
     evidence = dec_dict.get("evidence")
-    safe_response = dec_dict.get("safe_response")
+    safe_response = state.get("corrected_response") or dec_dict.get("safe_response")
     requires_human_review = bool(dec_dict.get("requires_human_review", False))
     tool_executed = bool(state.get("tool_executed", False))
     tool_result = state.get("tool_result")
@@ -252,11 +276,6 @@ def node_audit_event(state: PolicyState) -> PolicyState:
         )
         
         incident_id = None
-        # Create incident when:
-        # - High-risk action blocked
-        # - Fraud / legal detected
-        # - PII exposure detected
-        # - Human review required
         if requires_human_review or decision in ("BLOCK", "ESCALATE") or severity in ("HIGH", "CRITICAL"):
             inc = incident_service.create_incident(
                 db=db,
@@ -310,16 +329,8 @@ def node_final_response(state: PolicyState) -> PolicyState:
     dec_dict = state.get("policy_decision") or {}
     decision = dec_dict.get("decision", "ALLOW")
     
-    if decision == "BLOCK":
-        safe_resp = dec_dict.get("safe_response") or "This request cannot be completed according to our policy."
-        return {"final_response": safe_resp}
-        
-    if decision == "MODIFY":
-        safe_resp = dec_dict.get("safe_response") or "I can check your estimated delivery date once you provide your verified order ID."
-        return {"final_response": safe_resp}
-        
-    if decision == "ESCALATE":
-        safe_resp = dec_dict.get("safe_response") or "Your concern has been escalated to senior management."
+    if decision in ("BLOCK", "MODIFY", "ESCALATE"):
+        safe_resp = state.get("corrected_response") or dec_dict.get("safe_response") or "This request cannot be completed according to our policy."
         return {"final_response": safe_resp}
         
     # ALLOW scenario

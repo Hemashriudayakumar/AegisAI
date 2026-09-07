@@ -3,6 +3,7 @@ from app.models.policy import Policy, PolicyVersion
 from app.models.audit import AuditEvent
 from app.models.incident import Incident
 from app.models.approval import Approval
+from app.models.context import ConversationContextModel
 
 __all__ = [
     "Conversation",
@@ -12,4 +13,5 @@ __all__ = [
     "AuditEvent",
     "Incident",
     "Approval",
+    "ConversationContextModel",
 ]

@@ -22,6 +22,10 @@ def db_session():
     session.close()
 
 @pytest.fixture(scope="function")
+def db(db_session):
+    return db_session
+
+@pytest.fixture(scope="function")
 def client():
     app = create_app()
     with TestClient(app) as test_client:

@@ -16,6 +16,17 @@ export interface AuthorizationEnvelope {
   policy_version: string;
 }
 
+export interface ConversationContext {
+  conversation_id: string;
+  customer_id: string;
+  customer_verified: boolean;
+  verified_at?: string | null;
+  previous_refunds: Array<{ order_id: string; amount: number; timestamp: string }>;
+  complaint_count: number;
+  order_lookups: Record<string, any>;
+  last_updated_at: string;
+}
+
 export interface ChatResponse {
   request_id: string;
   conversation_id: string;
@@ -33,8 +44,12 @@ export interface ChatResponse {
   tool_result: Record<string, any> | null;
   final_response: string;
   agent_a_response: string | null;
+  original_response?: string | null;
+  corrected_response?: string | null;
+  remediation_type?: 'TEMPLATE' | 'LLM' | null;
   agent_b_called: boolean;
   incident_id: string | null;
+  context?: ConversationContext | null;
 }
 
 export interface AuditEvent {

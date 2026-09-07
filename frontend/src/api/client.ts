@@ -1,4 +1,4 @@
-import { AuditEvent, ChatResponse, Incident, Policy } from '../types';
+import { AuditEvent, ChatResponse, ConversationContext, Incident, Policy } from '../types';
 
 const getApiBase = () => {
   if (typeof window !== 'undefined') {
@@ -31,6 +31,12 @@ export const apiClient = {
       const err = await res.json().catch(() => ({ detail: 'Network request failed' }));
       throw new Error(err.detail || 'Chat request failed');
     }
+    return res.json();
+  },
+
+  async getChatContext(conversationId: string): Promise<ConversationContext> {
+    const res = await fetch(`${API_BASE}/chat/context/${conversationId}`);
+    if (!res.ok) throw new Error('Failed to fetch conversation context');
     return res.json();
   },
 

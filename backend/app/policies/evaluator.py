@@ -37,6 +37,50 @@ def evaluate_high_risk_escalation(
     return None
 
 
+def evaluate_repeated_complaint(
+    customer_message: str,
+    context: Dict[str, Any],
+    policy_def: Dict[str, Any],
+) -> Optional[PolicyDecision]:
+    """Policy: REPEATED_COMPLAINT_001
+    Escalates conversation if complaint count in context reaches threshold (default >= 3).
+    """
+    policy_id = policy_def.get("policy_id", "REPEATED_COMPLAINT_001")
+    version = policy_def.get("version", "v1.0")
+    severity = policy_def.get("severity", "HIGH")
+    threshold = int(policy_def.get("parameters", {}).get("escalation_complaint_threshold", 3))
+
+    complaint_count = int(context.get("complaint_count", 0))
+
+    msg_lower = customer_message.lower()
+    is_complaint = any(w in msg_lower for w in [
+        "issue", "problem", "broken", "damaged", "not working", "defective", "scam", "fraud",
+        "terrible", "worst", "unhappy", "angry", "complaint", "wrong", "delay", "late", "poor", "fault"
+    ])
+
+    current_complaints = complaint_count + (1 if is_complaint else 0)
+
+    if current_complaints >= threshold:
+        return PolicyDecision(
+            decision="ESCALATE",
+            policy_id=policy_id,
+            policy_version=version,
+            severity=severity,
+            reason=f"Repeated unresolved complaints detected (Count: {current_complaints}, Threshold: {threshold}).",
+            evidence={
+                "complaint_count": current_complaints,
+                "threshold": threshold,
+                "is_current_complaint": is_complaint
+            },
+            requires_human_review=True,
+            safe_response=policy_def.get("enforcement", {}).get(
+                "blocked_safe_response",
+                "I see you have experienced multiple unresolved issues with this order. I am escalating your case directly to a senior supervisor for immediate review."
+            )
+        )
+    return None
+
+
 def evaluate_pii_protection(
     customer_message: str,
     agent_a_response: str,
@@ -85,6 +129,42 @@ def evaluate_pii_protection(
     return None
 
 
+def evaluate_duplicate_refund(
+    proposed_action: Optional[ProposedAction],
+    context: Dict[str, Any],
+    policy_def: Dict[str, Any],
+) -> Optional[PolicyDecision]:
+    """Policy: DUPLICATE_REFUND_001
+    Prevents issuing duplicate refunds for the same order across conversation turns.
+    """
+    policy_id = policy_def.get("policy_id", "DUPLICATE_REFUND_001")
+    version = policy_def.get("version", "v1.0")
+    severity = policy_def.get("severity", "HIGH")
+
+    if proposed_action and proposed_action.tool_name == "issue_refund":
+        order_id = proposed_action.arguments.get("order_id")
+        previous_refunds = context.get("previous_refunds", [])
+        for prev in previous_refunds:
+            if isinstance(prev, dict) and prev.get("order_id") == order_id:
+                return PolicyDecision(
+                    decision="BLOCK",
+                    policy_id=policy_id,
+                    policy_version=version,
+                    severity=severity,
+                    reason=f"Refund already issued for order {order_id}.",
+                    evidence={
+                        "order_id": order_id,
+                        "previous_refund": prev
+                    },
+                    requires_human_review=True,
+                    safe_response=policy_def.get("enforcement", {}).get(
+                        "blocked_safe_response",
+                        "A refund has already been issued for this order. Our support team can assist if you have further questions."
+                    )
+                )
+    return None
+
+
 def evaluate_customer_verification(
     proposed_action: Optional[ProposedAction],
     is_verified: bool,
@@ -116,7 +196,7 @@ def evaluate_customer_verification(
                 requires_human_review=False,
                 safe_response=policy_def.get("enforcement", {}).get(
                     "blocked_safe_response",
-                    "Please verify your identity with your registered phone number or email before we can access order details or process transactions."
+                    "To assist you with this request, I need to verify your identity first. Could you please verify with your registered contact details?"
                 )
             )
     return None
@@ -198,6 +278,12 @@ def evaluate_delivery_verification(
     severity = policy_def.get("severity", "MEDIUM")
     
     verified_delivery_date = context.get("verified_delivery_date")
+    # Also check inside order_lookups if order_id is in context
+    if not verified_delivery_date and context.get("order_lookups"):
+        for _, lookup in context["order_lookups"].items():
+            if isinstance(lookup, dict) and lookup.get("verified_delivery_date"):
+                verified_delivery_date = lookup["verified_delivery_date"]
+                break
     
     date_patterns = [
         r'\b\d{4}-\d{2}-\d{2}\b',
@@ -212,7 +298,6 @@ def evaluate_delivery_verification(
         matched_dates.extend(matches)
         
     if matched_dates:
-        # If there is a verified date and the mentioned date aligns with verified date
         if verified_delivery_date and any(verified_delivery_date.lower() in m.lower() or m.lower() in verified_delivery_date.lower() for m in matched_dates):
             return PolicyDecision(
                 decision="ALLOW",
@@ -224,7 +309,6 @@ def evaluate_delivery_verification(
                 requires_human_review=False
             )
         else:
-            # Unverified delivery date promise
             return PolicyDecision(
                 decision="MODIFY",
                 policy_id=policy_id,
@@ -235,7 +319,7 @@ def evaluate_delivery_verification(
                 requires_human_review=False,
                 safe_response=policy_def.get("enforcement", {}).get(
                     "remediation_safe_response",
-                    "I can check your estimated delivery date once you provide your verified order ID."
+                    "Let me check the verified delivery date for your order. I will get back to you shortly."
                 )
             )
     return None

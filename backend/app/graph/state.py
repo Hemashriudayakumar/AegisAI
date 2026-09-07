@@ -13,6 +13,7 @@ class PolicyState(TypedDict, total=False):
     customer_id: str
     customer_message: str
     conversation_context: Dict[str, Any]
+    context_data: Optional[Dict[str, Any]]
     
     agent_a_response: Optional[str]
     proposed_action: Optional[Dict[str, Any]]
@@ -25,6 +26,10 @@ class PolicyState(TypedDict, total=False):
     
     tool_executed: bool
     tool_result: Optional[Dict[str, Any]]
+    
+    original_response: Optional[str]
+    corrected_response: Optional[str]
+    remediation_type: Optional[str]
     
     final_response: Optional[str]
     audit_event: Optional[Dict[str, Any]]

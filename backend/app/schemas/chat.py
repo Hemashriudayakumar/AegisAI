@@ -65,5 +65,9 @@ class ChatResponse(BaseModel):
     tool_result: Optional[Dict[str, Any]] = None
     final_response: str
     agent_a_response: Optional[str] = None
+    original_response: Optional[str] = None
+    corrected_response: Optional[str] = None
+    remediation_type: Optional[str] = None
     agent_b_called: bool = False
     incident_id: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None

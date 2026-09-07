@@ -17,6 +17,7 @@ from app.schemas.policy import (
 from app.schemas.audit import AuditEventRead, AuditEventListResponse
 from app.schemas.incident import IncidentRead, IncidentListResponse
 from app.schemas.approval import ApprovalRead, ApprovalActionRequest
+from app.schemas.context import ConversationContext
 
 __all__ = [
     "ProposedAction",
@@ -37,4 +38,5 @@ __all__ = [
     "IncidentListResponse",
     "ApprovalRead",
     "ApprovalActionRequest",
+    "ConversationContext",
 ]
