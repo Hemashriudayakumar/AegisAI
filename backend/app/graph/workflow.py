@@ -6,6 +6,7 @@ from app.graph.nodes import (
     node_normalize_agent_output,
     node_policy_gateway,
     route_decision_fn,
+    route_remediation_fn,
     node_operations_agent,
     node_tool_interceptor,
     node_execute_mock_tool,
@@ -57,8 +58,15 @@ def create_policy_graph() -> StateGraph:
     workflow.add_edge("tool_interceptor", "execute_mock_tool")
     workflow.add_edge("execute_mock_tool", "audit_event")
 
-    # Remediation & Escalation paths
-    workflow.add_edge("remediation_agent", "audit_event")
+    # Remediation conditional path (MODIFY with tool -> operations_agent, otherwise -> audit_event)
+    workflow.add_conditional_edges(
+        "remediation_agent",
+        route_remediation_fn,
+        {
+            "operations_agent": "operations_agent",
+            "audit_event": "audit_event",
+        }
+    )
     workflow.add_edge("human_escalation", "audit_event")
 
     # Finalization

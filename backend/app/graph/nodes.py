@@ -84,8 +84,8 @@ def node_policy_gateway(state: PolicyState) -> PolicyState:
         "policy_decision": decision.model_dump()
     }
     
-    # If ALLOW and action is proposed, generate Authorization Envelope for Agent B
-    if decision.decision == "ALLOW" and proposed_act:
+    # If ALLOW or MODIFY and action is proposed, generate Authorization Envelope for Agent B
+    if decision.decision in ("ALLOW", "MODIFY") and proposed_act:
         decision_id = f"DEC-{uuid.uuid4().hex[:6].upper()}"
         envelope = AuthorizationEnvelope(
             decision_id=decision_id,
@@ -121,6 +121,13 @@ def route_decision_fn(state: PolicyState) -> str:
         return "remediation_agent"
     elif decision == "ESCALATE":
         return "human_escalation"
+    return "audit_event"
+
+def route_remediation_fn(state: PolicyState) -> str:
+    dec_dict = state.get("policy_decision") or {}
+    decision = dec_dict.get("decision", "BLOCK")
+    if decision == "MODIFY" and state.get("approved_action"):
+        return "operations_agent"
     return "audit_event"
 
 # 6. operations_agent
@@ -180,6 +187,7 @@ def node_execute_mock_tool(state: PolicyState) -> PolicyState:
 # 9. remediation_agent (Feature F5: Response Remediation Agent)
 def node_remediation_agent(state: PolicyState) -> PolicyState:
     dec_dict = state.get("policy_decision") or {}
+    decision = dec_dict.get("decision", "BLOCK")
     original_resp = state.get("agent_a_response") or state.get("original_response") or ""
     context = state.get("conversation_context", {})
 
@@ -190,14 +198,19 @@ def node_remediation_agent(state: PolicyState) -> PolicyState:
         prefer_llm=False
     )
 
-    return {
+    updates: Dict[str, Any] = {
         "original_response": original_resp,
         "corrected_response": corrected,
         "remediation_type": rem_type,
         "final_response": corrected,
-        "agent_b_called": False,
-        "tool_executed": False,
     }
+
+    # For BLOCK: tool is not executed, agent b is not called
+    if decision == "BLOCK":
+        updates["agent_b_called"] = False
+        updates["tool_executed"] = False
+
+    return updates
 
 # 10. human_escalation
 def node_human_escalation(state: PolicyState) -> PolicyState:

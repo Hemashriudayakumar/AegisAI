@@ -90,3 +90,103 @@ def test_workflow_remediation_on_unverified_delivery_promise():
     assert final_state.get("corrected_response") is not None
     assert final_state.get("remediation_type") == "TEMPLATE"
     assert "verified delivery date" in final_state["final_response"].lower()
+
+# =========================================================================
+# Explicit verification tests for the Response Remediation scenarios
+# =========================================================================
+
+def test_scenario_1_refund_limit_remediation():
+    """Scenario 1:
+    - Policy: REFUND_LIMIT_001
+    - Original: "Your ₹3,000 refund has been processed."
+    - Corrected: "I can help raise a refund request. Since the amount is above ₹500, it requires approval from our support team."
+    """
+    original = "Your ₹3,000 refund has been processed."
+    policy_dec = {
+        "decision": "BLOCK",
+        "policy_id": "REFUND_LIMIT_001",
+        "reason": "Refund exceeds threshold without manager approval",
+        "evidence": {"approval_limit": 500, "refund_amount": 3000}
+    }
+    
+    corrected, rem_type = remediate_response(
+        policy_decision=policy_dec,
+        original_response=original,
+        context={"approval_limit": 500}
+    )
+
+    expected = "I can help raise a refund request. Since the amount is above ₹500, it requires approval from our support team."
+    assert corrected == expected
+    assert rem_type == "TEMPLATE"
+
+
+def test_scenario_2_customer_verification_remediation():
+    """Scenario 2:
+    - Policy: CUSTOMER_VERIFICATION_001
+    - Original: "Here is your order status."
+    - Corrected: "To assist you with this request, I need to verify your identity first. Could you please provide your order ID?"
+    """
+    original = "Here is your order status."
+    policy_dec = {
+        "decision": "BLOCK",
+        "policy_id": "CUSTOMER_VERIFICATION_001",
+        "reason": "Customer is unverified for sensitive order access",
+        "evidence": {"tool_name": "get_order_status", "is_verified": False}
+    }
+
+    corrected, rem_type = remediate_response(
+        policy_decision=policy_dec,
+        original_response=original,
+        context={"is_verified": False}
+    )
+
+    expected = "To assist you with this request, I need to verify your identity first. Could you please provide your order ID?"
+    assert corrected == expected
+    assert rem_type == "TEMPLATE"
+
+
+def test_scenario_3_block_vs_modify_decisions():
+    """Scenario 3:
+    - BLOCK: Generate safe response, do not execute tool.
+    - MODIFY: Rewrite response, allow tool execution.
+    """
+    # 1. Test BLOCK behavior
+    block_state = {
+        "request_id": "REQ-TEST-BLOCK-01",
+        "conversation_id": "CONV-TEST-BLOCK-01",
+        "customer_id": "CUST-10",
+        "customer_message": "Please refund ₹3,000 for ORD-999",
+        "conversation_context": {
+            "is_verified": True,
+            "manager_approved": False,
+        },
+        "agent_b_called": False,
+        "tool_executed": False,
+    }
+    block_result = policy_graph.invoke(block_state)
+    assert block_result["policy_decision"]["decision"] == "BLOCK"
+    assert block_result["tool_executed"] is False
+    assert block_result["agent_b_called"] is False
+    assert block_result["final_response"] == "I can help raise a refund request. Since the amount is above ₹500, it requires approval from our support team."
+
+    # 2. Test MODIFY behavior (Rewrite response, allow tool execution)
+    modify_state = {
+        "request_id": "REQ-TEST-MODIFY-01",
+        "conversation_id": "CONV-TEST-MODIFY-01",
+        "customer_id": "CUST-10",
+        "customer_message": "When is my delivery arriving for ORD-101?",
+        "conversation_context": {
+            "is_verified": True,
+            "order_id": "ORD-101",
+            "verified_delivery_date": None,
+        },
+        "agent_b_called": False,
+        "tool_executed": False,
+    }
+    modify_result = policy_graph.invoke(modify_state)
+    assert modify_result["policy_decision"]["decision"] == "MODIFY"
+    assert modify_result["corrected_response"] == "Let me check the verified delivery date for your order. I will get back to you shortly."
+    assert modify_result["final_response"] == "Let me check the verified delivery date for your order. I will get back to you shortly."
+    # If a valid tool action was proposed for lookup, tool execution was permitted
+    assert modify_result["tool_executed"] is True
+

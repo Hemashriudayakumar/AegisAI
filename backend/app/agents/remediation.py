@@ -7,11 +7,11 @@ logger = logging.getLogger(__name__)
 
 REMEDIATION_TEMPLATES: Dict[str, str] = {
     "REFUND_LIMIT_001": "I can help raise a refund request. Since the amount is above ₹{limit}, it requires approval from our support team.",
-    "CUSTOMER_VERIFICATION_001": "To assist you with this request, I need to verify your identity first. Could you please provide your order ID or verify with your registered contact details?",
+    "CUSTOMER_VERIFICATION_001": "To assist you with this request, I need to verify your identity first. Could you please provide your order ID?",
     "DELIVERY_VERIFICATION_001": "Let me check the verified delivery date for your order. I will get back to you shortly.",
     "PII_PROTECTION_001": "I cannot process or share sensitive personal information for security reasons. Please contact our support team for assistance.",
     "HIGH_RISK_ESCALATION_001": "I understand this is a serious concern. I have escalated your concern immediately to our specialized senior support team.",
-    "DUPLICATE_REFUND_001": "A refund has already been issued for this order. Our support team can assist if you have further questions.",
+    "DUPLICATE_REFUND_001": "A refund has already been issued for order {order_id}. Our policy permits only one refund per order.",
     "REPEATED_COMPLAINT_001": "I see you have experienced multiple unresolved issues with this order. I am escalating your case directly to a senior supervisor for immediate review.",
     "STANDARD_ALLOW_001": "How else may I assist you with your order today?"
 }
@@ -35,8 +35,14 @@ def remediate_response_template(
     elif policy_decision and policy_decision.get("evidence", {}).get("approval_limit"):
         limit = policy_decision["evidence"]["approval_limit"]
 
+    order_id = "this order"
+    if policy_decision and policy_decision.get("evidence", {}).get("order_id"):
+        order_id = policy_decision["evidence"]["order_id"]
+    elif context and context.get("order_id"):
+        order_id = context["order_id"]
+
     try:
-        return template.format(limit=int(limit))
+        return template.format(limit=int(limit), order_id=order_id)
     except Exception:
         return template
 

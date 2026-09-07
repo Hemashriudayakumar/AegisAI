@@ -7,6 +7,7 @@ os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["USE_MOCK_LLM"] = "true"
 
 from app.database import Base, engine, SessionLocal, init_db
+from app.policies.engine import policy_engine
 from app.main import create_app
 
 @pytest.fixture(scope="session", autouse=True)
@@ -14,6 +15,12 @@ def setup_database():
     init_db()
     yield
     Base.metadata.drop_all(bind=engine)
+
+@pytest.fixture(scope="function", autouse=True)
+def reset_policy_engine():
+    policy_engine.load_policies()
+    yield
+    policy_engine.load_policies()
 
 @pytest.fixture(scope="function")
 def db_session():

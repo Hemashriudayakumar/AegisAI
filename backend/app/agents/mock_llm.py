@@ -91,17 +91,27 @@ class MockLLMProvider:
             
         # 5. Delivery date inquiry / promise
         if any(w in msg_lower for w in ["when will", "delivery date", "deliver", "arrive", "expected delivery"]):
+            order_id = "ORD-101"
+            ord_match = re.search(r'\b(ord-\d+)\b', msg_lower)
+            if ord_match:
+                order_id = ord_match.group(1).upper()
             if context and context.get("verified_delivery_date"):
                 v_date = context["verified_delivery_date"]
                 return {
                     "response": f"Based on verified tracking information, your package is scheduled to arrive on {v_date}.",
-                    "proposed_action": None
+                    "proposed_action": {
+                        "tool_name": "get_order_status",
+                        "arguments": {"order_id": order_id}
+                    }
                 }
             else:
                 # Agent A attempts an unverified date commitment (tested by policy gateway)
                 return {
                     "response": "Your package will arrive on August 28 guaranteed.",
-                    "proposed_action": None
+                    "proposed_action": {
+                        "tool_name": "get_order_status",
+                        "arguments": {"order_id": order_id}
+                    }
                 }
                 
         # 6. Cancellation
