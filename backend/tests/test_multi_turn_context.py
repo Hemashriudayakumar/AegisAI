@@ -108,40 +108,122 @@ def test_repeated_complaint_escalation(db):
     assert decision.policy_id == "REPEATED_COMPLAINT_001"
     assert decision.requires_human_review is True
 
-def test_multi_turn_chat_api_workflow(client):
-    """End-to-end multi-turn chat turns via /api/chat testing context updates and duplicate prevention."""
-    conv_id = "CONV-MULTI-TURN-E2E"
-    
-    # Turn 1: Verified customer asks for ₹400 refund on ORD-101 (Should ALLOW and execute)
-    payload_1 = {
-        "customer_message": "Please refund ₹400 for order ORD-101.",
-        "customer_id": "CUST-E2E",
+# =========================================================================
+# Explicit verification tests for the 3 user-requested multi-turn scenarios
+# =========================================================================
+
+def test_scenario_1_duplicate_refund_detection_different_amounts(client):
+    """Scenario 1:
+    - Turn 1: Customer requests refund for ORD-101 (₹400) -> ALLOW
+    - Turn 2: Customer requests refund for ORD-101 (₹300) -> BLOCK (duplicate)
+    """
+    conv_id = "CONV-SCENARIO-1-DUP"
+
+    # Turn 1: Request ₹400 refund for ORD-101
+    r1 = client.post("/api/chat", json={
+        "customer_message": "Please refund ₹400 for my order ORD-101.",
+        "customer_id": "CUST-10",
         "conversation_id": conv_id,
         "is_verified": True,
         "manager_approved": False,
-    }
-    r1 = client.post("/api/chat", json=payload_1)
+    })
     assert r1.status_code == 200
     data1 = r1.json()
     assert data1["decision"] == "ALLOW"
     assert data1["tool_executed"] is True
-    assert data1["context"] is not None
     assert len(data1["context"]["previous_refunds"]) == 1
     assert data1["context"]["previous_refunds"][0]["order_id"] == "ORD-101"
+    assert data1["context"]["previous_refunds"][0]["amount"] == 400.0
 
-    # Turn 2: Same customer in same conversation asks for duplicate refund on ORD-101 (Should BLOCK via DUPLICATE_REFUND_001)
-    payload_2 = {
-        "customer_message": "Please refund ₹400 for order ORD-101.",
-        "customer_id": "CUST-E2E",
+    # Turn 2: Request ₹300 refund for same ORD-101 in same conversation
+    r2 = client.post("/api/chat", json={
+        "customer_message": "Please process a refund of ₹300 for order ORD-101.",
+        "customer_id": "CUST-10",
         "conversation_id": conv_id,
-        "is_verified": False,  # Verification should be preserved from turn 1
+        "is_verified": False,
         "manager_approved": False,
-    }
-    r2 = client.post("/api/chat", json=payload_2)
+    })
     assert r2.status_code == 200
     data2 = r2.json()
     assert data2["decision"] == "BLOCK"
     assert data2["policy_id"] == "DUPLICATE_REFUND_001"
     assert data2["tool_executed"] is False
-    assert data2["corrected_response"] is not None
     assert "already been issued" in data2["final_response"].lower()
+
+
+def test_scenario_2_complaint_escalation_three_turns(client):
+    """Scenario 2:
+    - Turn 1-3: Three unresolved complaints -> ESCALATE on third turn
+    """
+    conv_id = "CONV-SCENARIO-2-ESCALATE"
+
+    # Turn 1: First complaint (issue)
+    r1 = client.post("/api/chat", json={
+        "customer_message": "I am having an issue with my delivery.",
+        "customer_id": "CUST-10",
+        "conversation_id": conv_id,
+        "is_verified": True,
+    })
+    assert r1.status_code == 200
+    data1 = r1.json()
+    assert data1["context"]["complaint_count"] == 1
+    assert data1["decision"] in ("ALLOW", "MODIFY")
+
+    # Turn 2: Second complaint (broken)
+    r2 = client.post("/api/chat", json={
+        "customer_message": "The product arrived broken and damaged.",
+        "customer_id": "CUST-10",
+        "conversation_id": conv_id,
+        "is_verified": False,
+    })
+    assert r2.status_code == 200
+    data2 = r2.json()
+    assert data2["context"]["complaint_count"] == 2
+
+    # Turn 3: Third complaint (terrible service) -> Must ESCALATE on 3rd complaint
+    r3 = client.post("/api/chat", json={
+        "customer_message": "This is terrible service and a huge problem!",
+        "customer_id": "CUST-10",
+        "conversation_id": conv_id,
+        "is_verified": False,
+    })
+    assert r3.status_code == 200
+    data3 = r3.json()
+    assert data3["decision"] == "ESCALATE"
+    assert data3["policy_id"] == "REPEATED_COMPLAINT_001"
+    assert data3["context"]["complaint_count"] >= 3
+    assert "escalating your case directly to a senior supervisor" in data3["final_response"].lower()
+
+
+def test_scenario_3_verification_persistence_across_turns(client):
+    """Scenario 3:
+    - Turn 1: Customer verifies -> context.customer_verified = true
+    - Turn 2: Sensitive request without sending is_verified: True -> ALLOW (no re-verification needed)
+    """
+    conv_id = "CONV-SCENARIO-3-VERIFY"
+
+    # Turn 1: General greeting with 2FA/OTP verification check passed
+    r1 = client.post("/api/chat", json={
+        "customer_message": "Hello, I just logged in and verified my 2FA OTP.",
+        "customer_id": "CUST-10",
+        "conversation_id": conv_id,
+        "is_verified": True,
+    })
+    assert r1.status_code == 200
+    data1 = r1.json()
+    assert data1["context"]["customer_verified"] is True
+
+    # Turn 2: Customer makes a sensitive tool request (order status query) with is_verified: False in request payload
+    r2 = client.post("/api/chat", json={
+        "customer_message": "Where is my order ORD-101? Track the shipment.",
+        "customer_id": "CUST-10",
+        "conversation_id": conv_id,
+        "is_verified": False,  # Not supplied in request turn 2
+    })
+    assert r2.status_code == 200
+    data2 = r2.json()
+    # Should NOT be blocked by CUSTOMER_VERIFICATION_001 because Turn 1 stored customer_verified = True in context
+    assert data2["decision"] == "ALLOW"
+    assert data2["policy_id"] != "CUSTOMER_VERIFICATION_001"
+    assert data2["tool_executed"] is True
+    assert data2["context"]["customer_verified"] is True
